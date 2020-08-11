@@ -1,18 +1,12 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import tensorflow as tf
-import re
-import io
-from tensorflow.keras import *
 from tensorflow.keras.models import Model
 from tensorflow.keras.utils import plot_model
-from tensorflow.keras.layers import LSTM, GRU, Input, Dense, TimeDistributed, AdditiveAttention, Embedding, \
-    Bidirectional, Concatenate
+from tensorflow.keras.layers import GRU, Input, Dense, Embedding, Bidirectional, Concatenate
 from tensorflow.keras.callbacks import ModelCheckpoint
-from tensorflow.keras.optimizers import RMSprop, Adam
+from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.preprocessing.text import Tokenizer
 from sklearn.model_selection import train_test_split
-import gensim
 from gensim.models import Word2Vec, KeyedVectors
 from nltk.translate.bleu_score import corpus_bleu
 
@@ -257,9 +251,7 @@ decoder_dense_output = Dense(en_vocab_size, activation="softmax")(decoder_output
 model = Model(inputs=[encoder_input, decoder_input], outputs=[decoder_dense_output])
 
 # compile model
-model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate, \
-                                                 clipvalue=clip_value), \
-              loss="categorical_crossentropy")
+model.compile(optimizer=Adam(learning_rate=learning_rate, clipvalue=clip_value ,loss="categorical_crossentropy"))
 # Summarize compiled model
 model.summary()
 plot_model(model, to_file="/content/gdrive/My Drive/tfm/model_2_1.png", show_shapes=True)
@@ -280,7 +272,7 @@ model.fit(generate_batch(zh_train, en_train, global_max_len, en_vocab_size, b_si
           verbose=1, \
           callbacks=[checkpoint], )
 # model.save("/content/gdrive/My Drive/tfm/model_complete_v3_1.h5")
-# RMSprop bien
+
 
 """###2.3.3 Modelo para inferencia"""
 

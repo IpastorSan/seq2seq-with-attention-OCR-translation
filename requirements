@@ -1,0 +1,5 @@
+jieba == 0.42.1
+hanziconv == 0.3.2
+tesseract-ocr == 4.00
+libtesseract-dev == 4.00
+pytesseract == 0.3.5

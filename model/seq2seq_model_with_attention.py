@@ -10,11 +10,7 @@ from sklearn.model_selection import train_test_split
 from gensim.models import Word2Vec, KeyedVectors
 from nltk.translate.bleu_score import corpus_bleu
 
-"""##2.1 Preparación de datos
-
-Importar datos, tokenizacion, obtencion de parametros (Longitud maxima de la secuencia, vocabulario maximo de cada idioma)
-"""
-
+######Data Preparation#######
 
 def open_data(dataset, num_examples=None):
     with open(dataset) as archivo:
@@ -24,64 +20,47 @@ def open_data(dataset, num_examples=None):
     return corpus
 
 
-def tokenizer(dataset, max_len, max_features, language="en"):
-    tokenizer_lang = Tokenizer(num_words=max_features, filters="")
-
-    tokenizer_lang.fit_on_texts(dataset)
-    # asignamos un numero a cada palabra, es como un diccionario int-string
-    # Las palabras mas frecuentes tienen numeros mas bajos, 0 queda reservado a padding
-
-    word_tensor = tokenizer_lang.texts_to_sequences(dataset)
-    word_tensor = tf.keras.preprocessing.sequence.pad_sequences(word_tensor, \
-                                                                maxlen=max_len, \
-                                                                padding="post")
-    return tokenizer_lang, word_tensor
-
-
-# Corpus
+# Corpus. Adapt the path to your directory
 num_examples = 20000
 corpus_zh = open_data("/content/gdrive/My Drive/tfm/dataset_zh.txt", num_examples=num_examples)
 corpus_en = open_data("/content/gdrive/My Drive/tfm/dataset_en.txt", num_examples=num_examples)
 
-print(corpus_zh[0:100])
 
-print(corpus_en[0:100])
+def max_len(data):
+    return max(len(line.split()) for line in data)
 
-
-def max_len(datos):
-    return max(len(line.split()) for line in datos)
-
-
-# Longitud maxima de secuencia
+# Set max len
 zh_max_len = max_len(corpus_zh)
 en_max_len = max_len(corpus_en)
-global_max_len = max(en_max_len, zh_max_len)
-print(f"max len zh : {zh_max_len}")
-print(f"max len es : {en_max_len}")
-print(f"max len global : {global_max_len}")
+global_max_len = max(en_max_len, zh_max_len)  #This helps us when training the model, setting all lengths to the maximum
 
-# Tokenizacion. Obtenemos tokenizador y el texto codificado con integers
+
+def tokenizer(dataset, max_len, max_features, language="en"):
+    tokenizer_lang = Tokenizer(num_words=max_features, filters="")
+
+    tokenizer_lang.fit_on_texts(dataset)
+
+    word_tensor = tokenizer_lang.texts_to_sequences(dataset)
+    word_tensor = tf.keras.preprocessing.sequence.pad_sequences(word_tensor,maxlen=max_len, padding="post")
+
+    return tokenizer_lang, word_tensor  #dictionary with tokenized words/sequences translated to numbers
+
+
+# Tokenizacion. We obtain tokenizer and sequences
 zh_tokenizer_lang, zh_word_tensor = tokenizer(corpus_zh, global_max_len, max_features=3000)
 en_tokenizer_lang, en_word_tensor = tokenizer(corpus_en, global_max_len, max_features=3000)
 
-print(f"zh_word_tensor shape: {zh_word_tensor.shape}, en_word_tensor shape: {en_word_tensor.shape}")
 
-# Longitud del vocabulario. Se muestran todas pero el modelo solo tiene en cuenta el n-maximo
-# que hemos puesto en Tokenizer
+# Length of each set of vocabulary
 zh_vocab_size = len(zh_tokenizer_lang.word_index)
 en_vocab_size = len(en_tokenizer_lang.word_index)
-print(zh_vocab_size)
-print(en_vocab_size)
 
-zh_train, zh_test, en_train, en_test = train_test_split(zh_word_tensor, en_word_tensor, \
-                                                        test_size=0.1, random_state=13)
+#Split the dataset into train and test sets
+zh_train, zh_test, en_train, en_test = train_test_split(zh_word_tensor, en_word_tensor, test_size=0.1, random_state=13)
 
-"""##2.2 Preparacion de los archivos de embedding
-
-Fuente de los archivos: https://github.com/Kyubyong/wordvectors
-"""
-
-# Archivos embedding
+#Preparation of embedding files.
+#Source Chinese Embedding: https://github.com/Kyubyong/wordvectors
+#Source English Embedding
 embedding_file_en = "/content/gdrive/My Drive/tfm/en.bin"
 embedding_file_zh = "/content/gdrive/My Drive/tfm/zh.bin"
 
@@ -100,6 +79,9 @@ def from_w2v_to_dict(embedding_file, lang="zh"):
 
 embedding_zh = from_w2v_to_dict(embedding_file_zh)
 embedding_en = from_w2v_to_dict(embedding_file_en, lang="en")
+
+#Extract embedding weights to input into Keras Embedding Layer. Words not found in the embedding
+#will be substitued with a random vector with normal distribution with mean=embedding mean and std=embedding std
 
 
 def get_embedding_weights(embedd_dict, tokenizer_index, max_features=1000):
@@ -128,16 +110,9 @@ def get_embedding_weights(embedd_dict, tokenizer_index, max_features=1000):
 emb_zh = get_embedding_weights(embedding_zh, zh_tokenizer_lang, max_features=zh_vocab_size)
 emb_en = emb = get_embedding_weights(embedding_en, en_tokenizer_lang, max_features=en_vocab_size)
 
-print(f"emb_zh shape: {emb_zh.shape}, emb_en shape: {emb_en.shape}")
-
-"""##2.3)Modelo para entrenar (con Teacher Forcing)
-
-###2.3.1 Generador de datos para entrenamiento en batches
-"""
-
+########Batch Generator for training. We also implement teacher forcing here######
 
 def generate_batch(X, y, global_max_len, vocab_size_out, batch_size):
-    ''' Generate a batch of data '''
     while True:
         for j in range(0, len(X), batch_size):
             encoder_input_data = np.zeros((batch_size, global_max_len), dtype='float32')
@@ -151,34 +126,13 @@ def generate_batch(X, y, global_max_len, vocab_size_out, batch_size):
                         decoder_input_data[i, t] = word  # decoder input seq
                     if t > 0:
                         # decoder target sequence (one hot encoded)
-                        # does not include the START_ token
-                        # Offset by one timestep
+                        # does not include the "start" token and is offset by one timestep
                         decoder_target_data[i, t - 1, word] = 1  # si el vector es (1, 2, 4) ese 4 es 0001
             yield ([encoder_input_data, decoder_input_data], decoder_target_data)
 
+###########Model for training. GRU units, Bidirectional, with Attention (Bahdanau)#########
 
-# Prueba
-b_size = 128
-batch = generate_batch(zh_train, en_train, global_max_len, en_vocab_size, b_size)
-batch1 = next(batch)
-batch2 = next(batch)
-
-print(f"batch encoder_input shape (batch, global_max_len): {batch1[0][0].shape},\n \
-batch decoder_input shape (batch, global_max_len): {batch1[0][1].shape}, \n \
-batch decoder output shape (batch, global_max_len, output_num_words): {batch1[1].shape}")
-
-print(batch1[0][0][0][0])
-print(batch1[0][1][0][1])
-print(batch1[1][0][0][11])
-
-# Peso por batch
-print(f"{(batch1[1].size / 1024) / 1024} MB con batch size = {b_size}")
-
-"""###2.3.2 Modelo Entrenamiento
-
-####2.3.2.1 Capa de Atencion Bahdanau
-"""
-
+#Bahdanau Attention (from Tensorflow Tutorial)
 
 class BahdanauAttention(tf.keras.layers.Layer):
     def __init__(self, units):
@@ -209,21 +163,19 @@ class BahdanauAttention(tf.keras.layers.Layer):
 
         return context_vector, attention_weights
 
+#Model seq2seq
 
-"""####2.3.2.2 Modelo Seq2seq Encoder-Decoder"""
-
-# training model zh-en
 nodes_lstm = 1024
 learning_rate = 0.0001
 clip_value = 1
 dropout = 0.1
-# encoder-zh
+
+# encoder-Chinese
 encoder_input = Input(shape=(global_max_len,))
-encoder_embedding = Embedding(zh_vocab_size, 300, input_length=global_max_len,
-                              mask_zero=True)(encoder_input)
-encoder_gru = Bidirectional(GRU(nodes_lstm, return_sequences=True, \
-                                unroll=True, dropout=dropout, return_state=True, \
-                                name="encoder_lstm"))
+#mask_zero=True allows for the padding 0 at the end of the sequence to be ignored
+encoder_embedding = Embedding(zh_vocab_size, 300, input_length=global_max_len, mask_zero=True)(encoder_input)
+encoder_gru = Bidirectional(GRU(nodes_lstm, return_sequences=True,unroll=True, dropout=dropout,\
+                                return_state=True, name="encoder_lstm"))
 encoder_output, state_h_f, state_h_b = encoder_gru(encoder_embedding)
 state_h = Concatenate(name="states_h")([state_h_f, state_h_b])
 
@@ -231,21 +183,20 @@ state_h = Concatenate(name="states_h")([state_h_f, state_h_b])
 attention_layer = BahdanauAttention(nodes_lstm * 2)
 context_vector, attention_weights = attention_layer(state_h, encoder_output)  # output del encoder y decoder
 context_vector = tf.keras.layers.RepeatVector(global_max_len)(
-    context_vector)  # repeat vector=longitud de secuencia objetivo
+    context_vector)  # repeat vector=length of target sequence
 
-# decoder-en
+# decoder-English
 decoder_input = Input(shape=(global_max_len), name="decoder_input")
-decoder_emb = Embedding(en_vocab_size, 300, input_length=global_max_len, \
-                        mask_zero=True)(decoder_input)
+decoder_emb = Embedding(en_vocab_size, 300, input_length=global_max_len,mask_zero=True)(decoder_input)
 
 decoder_emb_attention = tf.concat([context_vector, decoder_emb], axis=-1)
 
-decoder_gru = GRU(nodes_lstm * 2, return_sequences=True, return_state=True, \
-                  unroll=True, dropout=dropout, name="decoder_lstm")
+decoder_gru = GRU(nodes_lstm * 2, return_sequences=True, return_state=True,unroll=True,\
+                  dropout=dropout,name="decoder_lstm")
 
 decoder_output, _ = decoder_gru(decoder_emb_attention, initial_state=state_h)
 
-# Output del decoder
+#Decoder Output
 decoder_dense_output = Dense(en_vocab_size, activation="softmax")(decoder_output)
 
 model = Model(inputs=[encoder_input, decoder_input], outputs=[decoder_dense_output])
@@ -256,14 +207,13 @@ model.compile(optimizer=Adam(learning_rate=learning_rate, clipvalue=clip_value ,
 model.summary()
 plot_model(model, to_file="/content/gdrive/My Drive/tfm/model_2_1.png", show_shapes=True)
 
-"""####2.3.2.3 fit modelo"""
 
-# fit model. hay que poner [encoder input data, decoder input data], target input data=dcoder input data=1 timestep
+# fit model
 epochs = 50
 b_size = 256
-checkpoint = ModelCheckpoint("/content/gdrive/My Drive/tfm/model_weights_v3_1.h5", \
-                             monitor="val_loss", verbose=1, save_best_only=True \
-                             , mode="min", save_weights_only=True)
+checkpoint = ModelCheckpoint("/content/gdrive/My Drive/tfm/model_weights_v3_1.h5", monitor="val_loss",\
+                             verbose=1, save_best_only=True , mode="min", save_weights_only=True)
+
 model.fit(generate_batch(zh_train, en_train, global_max_len, en_vocab_size, b_size), \
           steps_per_epoch=len(zh_train) // b_size, \
           epochs=epochs, \
@@ -274,26 +224,26 @@ model.fit(generate_batch(zh_train, en_train, global_max_len, en_vocab_size, b_si
 # model.save("/content/gdrive/My Drive/tfm/model_complete_v3_1.h5")
 
 
-"""###2.3.3 Modelo para inferencia"""
+##############Model modified for INFERENCE##################
 
-# encoder_model_inference
+# encoder_model_inference is the same
 encoder_inf = Model(encoder_input, [encoder_output, state_h])
 
 encoder_inf.save("/content/gdrive/My Drive/tfm/encoder_inf_model_v3_1.h5")
 encoder_inf.save_weights("/content/gdrive/My Drive/tfm/encoder_inf_weights_v3_1.h5")
 
 # decoder_model_inference 1
-decoder_inf_state_input_h = Input(shape=(nodes_lstm * 2,), name="encoder_hidden_state")
-encoder_output_input = Input(shape=(global_max_len, nodes_lstm * 2))
+decoder_inf_state_input_h = Input(shape=(nodes_lstm * 2,), name="encoder_hidden_state") #Encoder hidden states
+encoder_output_input = Input(shape=(global_max_len, nodes_lstm * 2)) #encoder output for attention layer
 # decoder_inputs
-decoder_inf_input = Input(shape=(1,))
+decoder_inf_input = Input(shape=(1,)) #Input fro inference decoding is 1 word at a time
 decoder_inf_input_one = Embedding(en_vocab_size, 300, \
                                   weights=[emb_en], mask_zero=True)(decoder_inf_input)
 
 # Attention Layer
 attention_layer = BahdanauAttention(nodes_lstm * 2)
 context_vector, attention_weights = attention_layer(decoder_inf_state_input_h,
-                                                    encoder_output_input)  # output del encoder y decoder
+                                                    encoder_output_input)
 context_vector = tf.keras.layers.RepeatVector(1)(context_vector)  # repeat vector=longitud de secuencia objetivo
 
 # decoder
@@ -304,8 +254,10 @@ decoder_inf_state = h_inf
 
 decoder_inf_output = Dense(en_vocab_size, activation="softmax")(decoder_inf)
 
+
 decoder_inf_model = Model([decoder_inf_input, encoder_output_input, decoder_inf_state_input_h], \
                           [decoder_inf_output, decoder_inf_state])
+
 decoder_inf_model.summary()
 
 plot_model(decoder_inf_model, to_file="/content/gdrive/My Drive/tfm/decoder_inf_model_v2.png", \
@@ -314,9 +266,10 @@ plot_model(decoder_inf_model, to_file="/content/gdrive/My Drive/tfm/decoder_inf_
 # decoder_inf_model.save("/content/gdrive/My Drive/tfm/decoder_inf_model_v3_1.h5")
 decoder_inf_model.save_weights("/content/gdrive/My Drive/tfm/decoder_inf_weights_v3_1.h5")
 
-"""###2.3.4 Loop para inferencia"""
+#############Inference Loop#####################
 
-# diccionario inverso integer-palabra
+#Reverse dictionary integer-word
+
 decoding_dict = {v: k for k, v in en_tokenizer_lang.word_index.items()}
 
 decode_zh = {v: k for k, v in zh_tokenizer_lang.word_index.items()}
@@ -352,13 +305,6 @@ def translate_sentence(input_sentence, target_tokenizer, decoding_dict, output_m
     return " ".join(translated_sentence)
 
 
-# Prueba
-sentence = zh_train[0:1]
-tr = translate_sentence(sentence, en_tokenizer_lang, decoding_dict=decoding_dict, \
-                        output_max_len=global_max_len)
-print(tr)
-
-
 def translate_corpus(corpus, tokenizer, decoding_dict, output_max_len):
     corpus_list = list()
     for i in range(0, len(corpus)):
@@ -367,7 +313,7 @@ def translate_corpus(corpus, tokenizer, decoding_dict, output_max_len):
     return corpus_list
 
 
-"""###2.3.5 Evaluación modelo"""
+#######Model Evaluation######3
 
 decode_zh = {v: k for k, v in zh_tokenizer_lang.word_index.items()}
 decode_en = {v: k for k, v in en_tokenizer_lang.word_index.items()}
@@ -395,10 +341,10 @@ def decode_target(sentence):
 # tokenizer = en_tokenizer_lang
 # output_max_len = global_max_len
 # decoding_dict = decode_zh
-def evaluar_modelo(source_corpus, target_corpus):
-    original = source_corpus  # formato: lista de frases que son listas de token
+def evaluate_model(source_corpus, target_corpus):
+    original = source_corpus  # format: list of sentences
     actual = [decode_target(target_corpus[i]) for i in
-              range(len(target_corpus))]  # formato: lista de frases que son listas de tokens
+              range(len(target_corpus))]  # format: list of sentences
     predicted = translate_corpus(source_corpus, en_tokenizer_lang, \
                                  decoding_dict=decode_en, output_max_len=global_max_len)
 

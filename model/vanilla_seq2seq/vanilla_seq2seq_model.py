@@ -182,7 +182,7 @@ checkpoint = ModelCheckpoint("/content/gdrive/My Drive/tfm/model_weights_v1.h5",
 lr_scheduler = tf.keras.callbacks.ReduceLROnPlateau(monitor="val_loss", factor=0.1, patience=5)
 early_stopping = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=10)
 
-model.fit(generate_batch(zh_train, en_train, global_max_len, en_vocab_size, b_size), \
+history = model.fit(generate_batch(zh_train, en_train, global_max_len, en_vocab_size, b_size), \
           steps_per_epoch=len(zh_train) // b_size, \
           epochs=epochs, \
           validation_data=generate_batch(zh_test, en_test, global_max_len, en_vocab_size, b_size), \

@@ -248,7 +248,7 @@ def translate_sentence(input_sentence, target_tokenizer, decoding_dict, output_m
     translated_sentence = []
 
     for i in range(output_max_len):
-        output_token, decoder_states = decoder_inf_model.predict([target_sequence, encoder_output, states_value])
+        output_token, decoder_states = decoder_inf_model.predict([target_sequence,  states_value])
         id_word = np.argmax(output_token[0, -1, :])
 
         if id_word == end_of_sequence or input_sentence[0][i] == 0:  #this is wrong so far

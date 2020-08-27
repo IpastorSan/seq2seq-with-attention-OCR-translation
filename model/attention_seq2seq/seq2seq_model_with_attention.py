@@ -165,7 +165,7 @@ class BahdanauAttention(tf.keras.layers.Layer):
 
 #Model seq2seq
 
-nodes_lstm = 1024
+nodes = 1024
 learning_rate = 0.0001
 clip_value = 1
 dropout = 0.1
@@ -186,7 +186,7 @@ encoder_output, state_h_f, state_h_b = Bidirectional(GRU(nodes, return_sequences
 state_h = Concatenate(name="states_h")([state_h_f, state_h_b])
 
 # Attention Layer
-attention_layer = BahdanauAttention(nodes_lstm * 2)
+attention_layer = BahdanauAttention(nodes * 2)
 context_vector, attention_weights = attention_layer(state_h, encoder_output)  # output del encoder y decoder
 context_vector = tf.keras.layers.RepeatVector(global_max_len)(
     context_vector)  # repeat vector=length of target sequence
@@ -198,7 +198,7 @@ decoder_emb = Embedding(en_vocab_size, 300, input_length=global_max_len,mask_zer
 
 decoder_emb_attention = tf.concat([context_vector, decoder_emb], axis=-1)
 
-decoder_gru = GRU(nodes* 2, return_sequences=True,unroll=True,\
+decoder_gru = GRU(nodes * 2, return_sequences=True,unroll=True,\
                   dropout=dropout,name="decoder_gru_1")(decoder_emb_attention, initial_state=state_h)
 
 decoder_batch_norm = tf.keras.layers.BatchNormalization()(decoder_gru)
@@ -213,7 +213,8 @@ decoder_dense_output = Dense(en_vocab_size, activation="softmax")(decoder_output
 model = Model(inputs=[encoder_input, decoder_input], outputs=[decoder_dense_output])
 
 # compile model
-model.compile(optimizer=Adam(learning_rate=learning_rate, clipvalue=clip_value ,loss="categorical_crossentropy"))
+model.compile(optimizer=Adam(learning_rate=learning_rate, clipvalue=clip_value),\
+              loss="categorical_crossentropy", metrics=["accuracy"])
 # Summarize compiled model
 model.summary()
 plot_model(model, to_file="/content/gdrive/My Drive/tfm/model_2_1.png", show_shapes=True)
@@ -252,14 +253,14 @@ decoder_inf_input_one = Embedding(en_vocab_size, 300, \
                                   weights=[emb_en], mask_zero=True)(decoder_inf_input)
 
 # Attention Layer
-attention_layer = BahdanauAttention(nodes_lstm * 2)
+attention_layer = BahdanauAttention(nodes * 2)
 context_vector, attention_weights = attention_layer(decoder_inf_state_input_h,
                                                     encoder_output_input)
 context_vector = tf.keras.layers.RepeatVector(1)(context_vector)  # repeat vector=longitud de secuencia objetivo
 
 # decoder
 decoder_emb_attention = tf.concat([context_vector, decoder_inf_input_one], axis=-1)
-decoder_inf_gru = GRU(nodes_lstm * 2, return_sequences=True, return_state=True, unroll=True)
+decoder_inf_gru = GRU(nodes * 2, return_sequences=True, return_state=True, unroll=True)
 decoder_inf, h_inf = decoder_gru(decoder_emb_attention, initial_state=decoder_inf_state_input_h)
 decoder_inf_state = h_inf
 

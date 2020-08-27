@@ -166,7 +166,6 @@ batch_norm = tf.keras.layers.BatchNormalization()(encoder_gru)
 encoder_output, state_h_f, state_h_b = Bidirectional(GRU(nodes, return_sequences=True,unroll=True,\
                                 return_state=True,name="encoder_gru_2"))(batch_norm)
 
->>>>>>> 9270f4883390372920d9f3a2d19c21f8dbeefba6
 state_h = Concatenate(name="states_h")([state_h_f, state_h_b])
 
 
@@ -175,7 +174,6 @@ decoder_input = Input(shape=(global_max_len), name="decoder_input")
 decoder_emb = Embedding(en_vocab_size, 300, input_length=global_max_len,mask_zero=True)(decoder_input)
 
 
-<<<<<<< HEAD
 decoder_gru = GRU(nodes_lstm * 2, return_sequences=True, return_state=True,unroll=True,\
                   dropout=dropout,name="decoder_lstm")
 

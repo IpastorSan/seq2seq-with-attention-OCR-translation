@@ -146,8 +146,13 @@ encoder_input = Input(shape=(global_max_len,))
 #mask_zero=True allows for the padding 0 at the end of the sequence to be ignored
 encoder_embedding = Embedding(zh_vocab_size, 300, input_length=global_max_len, mask_zero=True)(encoder_input)
 
+encoder_gru = Bidirectional(GRU(nodes, return_sequences=True,unroll=True,\
+                                name="encoder_gru_1"))(encoder_embedding)
+
+batch_norm = tf.keras.layers.BatchNormalization()(encoder_gru)
+
 encoder_output, state_h_f, state_h_b = Bidirectional(GRU(nodes, return_sequences=True,unroll=True,\
-                                return_state=True,name="encoder_gru_2"))(encoder_embedding)
+                                return_state=True,name="encoder_gru_2"))(batch_norm)
 
 state_h = Concatenate(name="states_h")([state_h_f, state_h_b])
 
@@ -158,11 +163,18 @@ decoder_emb = Embedding(en_vocab_size, 300, input_length=global_max_len,mask_zer
 
 
 decoder_gru = GRU(nodes* 2, return_sequences=True,unroll=True,\
-                  return_state=TRue, dropout=dropout,name="decoder_gru_1")(decoder_emb, initial_state=state_h)
+                  dropout=dropout,name="decoder_gru_1")(decoder_emb, initial_state=state_h)
+
+decoder_batch_norm = tf.keras.layers.BatchNormalization()(decoder_gru)
+
+decoder_output, _ = decoder_gru = GRU(nodes* 2, return_sequences=True, return_state=True,unroll=True,\
+                  dropout=dropout,name="decoder_gru_2")(decoder_batch_norm)
+
+decoder_batch_norm = tf.keras.layers.BatchNormalization()(decoder_output)
 
 #Decoder Output
-
-decoder_dense_output = Dense(en_vocab_size, activation="softmax")(decoder_gru)
+decoder_dense= Dense(252, activation="relu")(decoder_batch_norm)
+decoder_dense_output = Dense(en_vocab_size, activation="softmax")(decoder_dense)
 
 model = Model(inputs=[encoder_input, decoder_input], outputs=[decoder_dense_output])
 

@@ -136,27 +136,17 @@ def generate_batch(X, y, global_max_len, vocab_size_out, batch_size):
 
 #Model seq2seq
 
-<<<<<<< HEAD
-nodes_lstm = 1024
-learning_rate = 0.0001
-clip_value = 1
-dropout = 0.1
-=======
+
 nodes = 1024
 learning_rate = 0.001
 clip_value = 1
 dropout = 0.01
->>>>>>> 9270f4883390372920d9f3a2d19c21f8dbeefba6
+
 
 # encoder-Chinese
 encoder_input = Input(shape=(global_max_len,))
 #mask_zero=True allows for the padding 0 at the end of the sequence to be ignored
 encoder_embedding = Embedding(zh_vocab_size, 300, input_length=global_max_len, mask_zero=True)(encoder_input)
-<<<<<<< HEAD
-encoder_gru = Bidirectional(GRU(nodes_lstm, return_sequences=True,unroll=True, dropout=dropout,\
-                                return_state=True, name="encoder_lstm"))
-encoder_output, state_h_f, state_h_b = encoder_gru(encoder_embedding)
-=======
 
 encoder_gru = Bidirectional(GRU(nodes, return_sequences=True,unroll=True,\
                                 name="encoder_gru_1"))(encoder_embedding)
@@ -174,14 +164,6 @@ decoder_input = Input(shape=(global_max_len), name="decoder_input")
 decoder_emb = Embedding(en_vocab_size, 300, input_length=global_max_len,mask_zero=True)(decoder_input)
 
 
-decoder_gru = GRU(nodes_lstm * 2, return_sequences=True, return_state=True,unroll=True,\
-                  dropout=dropout,name="decoder_lstm")
-
-decoder_output, _ = decoder_gru(decoder_emb, initial_state=state_h)
-
-#Decoder Output
-decoder_dense_output = Dense(en_vocab_size, activation="softmax")(decoder_output)
-=======
 decoder_gru = GRU(nodes* 2, return_sequences=True,unroll=True,\
                   dropout=dropout,name="decoder_gru_1")(decoder_emb, initial_state=state_h)
 
@@ -195,18 +177,15 @@ decoder_batch_norm = tf.keras.layers.BatchNormalization()(decoder_output)
 #Decoder Output
 decoder_dense= Dense(252, activation="relu")(decoder_batch_norm)
 decoder_dense_output = Dense(en_vocab_size, activation="softmax")(decoder_dense)
->>>>>>> 9270f4883390372920d9f3a2d19c21f8dbeefba6
+
 
 model = Model(inputs=[encoder_input, decoder_input], outputs=[decoder_dense_output])
 
 # compile model
 model.compile(optimizer=Adam(learning_rate=learning_rate, clipvalue=clip_value),\
-<<<<<<< HEAD
-                             loss="categorical_crossentropy")
-=======
               loss="categorical_crossentropy",\
               metrics=["accuracy"])
->>>>>>> 9270f4883390372920d9f3a2d19c21f8dbeefba6
+
 # Summarize compiled model
 model.summary()
 plot_model(model, to_file="/content/gdrive/My Drive/tfm/model_v1.png", show_shapes=True)

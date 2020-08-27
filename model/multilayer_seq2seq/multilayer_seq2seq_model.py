@@ -219,27 +219,16 @@ encoder_inf.save("/content/gdrive/My Drive/tfm/encoder_inf_model_v1.h5")
 encoder_inf.save_weights("/content/gdrive/My Drive/tfm/encoder_inf_weights_v1.h5")
 
 # decoder_model_inference
-decoder_inf_state_input_h = Input(shape=(nodes_lstm * 2,), name="encoder_hidden_state") #Encoder hidden states
+decoder_inf_state_input_h = Input(shape=(nodes * 2,), name="encoder_hidden_state") #Encoder hidden states
 
 # decoder_inputs
-<<<<<<< HEAD
-=======
-# decoder_inputs
->>>>>>> 9270f4883390372920d9f3a2d19c21f8dbeefba6
+
 decoder_inf_input = Input(shape=(1,)) #Input fro inference decoding is 1 word at a time
 decoder_inf_input_emb = Embedding(en_vocab_size, 300, \
                                   weights=[emb_en], mask_zero=True)(decoder_inf_input)
 
 # decoder
-<<<<<<< HEAD
-decoder_inf_gru = GRU(nodes_lstm * 2, return_sequences=True, return_state=True, unroll=True)
-decoder_inf, h_inf = decoder_gru(decoder_inf_input_emb, initial_state=decoder_inf_state_input_h)
-decoder_inf_state = h_inf
 
-decoder_inf_output = Dense(en_vocab_size, activation="softmax")(decoder_inf)
-
-
-=======
 decoder_gru_inf = GRU(nodes* 2, return_sequences=True,unroll=True,\
                   dropout=dropout,name="decoder_gru_1")(decoder_inf_input_emb,\
                                                         initial_state=decoder_inf_state_input_h)
@@ -255,7 +244,7 @@ decoder_inf_state = h_inf
 decoder_dense_inf= Dense(252, activation="relu")(decoder_batch_norm_inf)
 
 decoder_inf_output = Dense(en_vocab_size, activation="softmax")(decoder_dense_inf)
->>>>>>> 9270f4883390372920d9f3a2d19c21f8dbeefba6
+
 decoder_inf_model = Model([decoder_inf_input, decoder_inf_state_input_h], \
                           [decoder_inf_output, decoder_inf_state])
 

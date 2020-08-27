@@ -218,18 +218,27 @@ encoder_inf.save_weights("/content/gdrive/My Drive/tfm/encoder_inf_weights_v1.h5
 decoder_inf_state_input_h = Input(shape=(nodes_lstm * 2,), name="encoder_hidden_state") #Encoder hidden states
 
 # decoder_inputs
+# decoder_inputs
 decoder_inf_input = Input(shape=(1,)) #Input fro inference decoding is 1 word at a time
 decoder_inf_input_emb = Embedding(en_vocab_size, 300, \
                                   weights=[emb_en], mask_zero=True)(decoder_inf_input)
 
 # decoder
-decoder_inf_gru = GRU(nodes_lstm * 2, return_sequences=True, return_state=True, unroll=True)
-decoder_inf, h_inf = decoder_gru(decoder_inf_input_emb, initial_state=decoder_inf_state_input_h)
+decoder_gru_inf = GRU(nodes* 2, return_sequences=True,unroll=True,\
+                  dropout=dropout,name="decoder_gru_1")(decoder_inf_input_emb,\
+                                                        initial_state=decoder_inf_state_input_h)
+
+decoder_batch_norm_inf = tf.keras.layers.BatchNormalization()(decoder_gru_inf)
+
+decoder_output_inf, h_inf = GRU(nodes* 2, return_sequences=True, return_state=True,unroll=True,\
+                  dropout=dropout,name="decoder_gru_2")(decoder_batch_norm_inf)
+
+decoder_batch_norm_inf = tf.keras.layers.BatchNormalization()(decoder_output_inf)
 decoder_inf_state = h_inf
+#Decoder Output
+decoder_dense_inf= Dense(252, activation="relu")(decoder_batch_norm_inf)
 
-decoder_inf_output = Dense(en_vocab_size, activation="softmax")(decoder_inf)
-
-
+decoder_inf_output = Dense(en_vocab_size, activation="softmax")(decoder_dense_inf)
 decoder_inf_model = Model([decoder_inf_input, decoder_inf_state_input_h], \
                           [decoder_inf_output, decoder_inf_state])
 

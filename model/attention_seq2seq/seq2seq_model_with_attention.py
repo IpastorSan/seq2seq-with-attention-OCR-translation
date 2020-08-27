@@ -245,8 +245,8 @@ encoder_inf.save("/content/gdrive/My Drive/tfm/encoder_inf_model_v3_1.h5")
 encoder_inf.save_weights("/content/gdrive/My Drive/tfm/encoder_inf_weights_v3_1.h5")
 
 # decoder_model_inference 1
-decoder_inf_state_input_h = Input(shape=(nodes_lstm * 2,), name="encoder_hidden_state") #Encoder hidden states
-encoder_output_input = Input(shape=(global_max_len, nodes_lstm * 2)) #encoder output for attention layer
+decoder_inf_state_input_h = Input(shape=(nodes * 2,), name="encoder_hidden_state") #Encoder hidden states
+encoder_output_input = Input(shape=(global_max_len, nodes * 2)) #encoder output for attention layer
 # decoder_inputs
 decoder_inf_input = Input(shape=(1,)) #Input fro inference decoding is 1 word at a time
 decoder_inf_input_one = Embedding(en_vocab_size, 300, \

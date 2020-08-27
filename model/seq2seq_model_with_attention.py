@@ -174,9 +174,15 @@ dropout = 0.1
 encoder_input = Input(shape=(global_max_len,))
 #mask_zero=True allows for the padding 0 at the end of the sequence to be ignored
 encoder_embedding = Embedding(zh_vocab_size, 300, input_length=global_max_len, mask_zero=True)(encoder_input)
-encoder_gru = Bidirectional(GRU(nodes_lstm, return_sequences=True,unroll=True, dropout=dropout,\
-                                return_state=True, name="encoder_lstm"))
-encoder_output, state_h_f, state_h_b = encoder_gru(encoder_embedding)
+
+encoder_gru = Bidirectional(GRU(nodes, return_sequences=True,unroll=True,\
+                                name="encoder_gru_1"))(encoder_embedding)
+
+batch_norm = tf.keras.layers.BatchNormalization()(encoder_gru)
+
+encoder_output, state_h_f, state_h_b = Bidirectional(GRU(nodes, return_sequences=True,unroll=True,\
+                                return_state=True,name="encoder_gru_2"))(batch_norm)
+
 state_h = Concatenate(name="states_h")([state_h_f, state_h_b])
 
 # Attention Layer
@@ -187,14 +193,19 @@ context_vector = tf.keras.layers.RepeatVector(global_max_len)(
 
 # decoder-English
 decoder_input = Input(shape=(global_max_len), name="decoder_input")
+
 decoder_emb = Embedding(en_vocab_size, 300, input_length=global_max_len,mask_zero=True)(decoder_input)
 
 decoder_emb_attention = tf.concat([context_vector, decoder_emb], axis=-1)
 
-decoder_gru = GRU(nodes_lstm * 2, return_sequences=True, return_state=True,unroll=True,\
-                  dropout=dropout,name="decoder_lstm")
+decoder_gru = GRU(nodes* 2, return_sequences=True,unroll=True,\
+                  dropout=dropout,name="decoder_gru_1")(decoder_emb_attention, initial_state=state_h)
 
-decoder_output, _ = decoder_gru(decoder_emb_attention, initial_state=state_h)
+decoder_batch_norm = tf.keras.layers.BatchNormalization()(decoder_gru)
+
+decoder_output, _ = decoder_gru = GRU(nodes* 2, return_sequences=True, return_state=True,unroll=True,\
+                  dropout=dropout,name="decoder_gru_2")(decoder_batch_norm)
+
 
 #Decoder Output
 decoder_dense_output = Dense(en_vocab_size, activation="softmax")(decoder_output)

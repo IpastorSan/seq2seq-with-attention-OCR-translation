@@ -1,7 +1,7 @@
 # OCR for Chinese character recognition
 
 # Import Image as string
-from seq2seq_model_with_attention import max_len, tokenizer, translate_corpus, decode_en
+from full workflow_data_seq2seq_attention.py import max_len, tokenizer, translate_corpus, decode_en
 from PIL import Image
 from pytesseract import image_to_string
 
@@ -12,14 +12,11 @@ zh_tra_file = "/content/gdrive/My Drive/tfm/chi_tra_vert.traineddata"
 shutil.copy(zh_sim_file, "/usr/share/tesseract-ocr/4.00/tessdata")  # This comes from Colab, adapt to your system
 shutil.copy(zh_tra_file, "/usr/share/tesseract-ocr/4.00/tessdata")  # This comes from Colab, adapt to your system
 
-"""La imagen se importa con cada caracter separado. Esto dificulta la tokenizacion
-
+"""
 Preprocessing form previous script:
 1)Eliminate all spaces and special characters
 2)Apply tokenizer function 
 """
-
-
 def from_image_to_text(image):  # Input image is in Chinese
     im = Image.open(image)
     text_im = image_to_string(im, lang='chi_sim_vert+chi_tra_vert')
@@ -38,9 +35,3 @@ def translate_image(image_data, decoding_dictionary, max_features=1000):
 
     return image_translation
 
-
-image_path = "/content/gdrive/My Drive/tfm/img_prueba.png"  # add your path
-
-# Prueba
-text_from_image = from_image_to_text(image_path)
-translation = translate_image(text_from_image, decode_en)

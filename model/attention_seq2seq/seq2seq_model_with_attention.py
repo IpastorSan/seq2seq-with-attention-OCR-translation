@@ -4,11 +4,12 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.utils import plot_model
 from tensorflow.keras.layers import GRU, Input, Dense, Embedding, Bidirectional, Concatenate
 from tensorflow.keras.callbacks import ModelCheckpoint
-from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.optimizers import RMSprop
 from tensorflow.keras.preprocessing.text import Tokenizer
 from sklearn.model_selection import train_test_split
 from gensim.models import Word2Vec, KeyedVectors
 from nltk.translate.bleu_score import corpus_bleu
+import os, datetime
 
 ######Data Preparation#######
 
@@ -55,8 +56,6 @@ en_tokenizer_lang, en_word_tensor = tokenizer(corpus_en, global_max_len, max_fea
 zh_vocab_size = len(zh_tokenizer_lang.word_index)
 en_vocab_size = len(en_tokenizer_lang.word_index)
 
-#Split the dataset into train and test sets
-zh_train, zh_test, en_train, en_test = train_test_split(zh_word_tensor, en_word_tensor, test_size=0.1, random_state=13)
 
 #Preparation of embedding files.
 #Source Chinese Embedding: https://github.com/Kyubyong/wordvectors
@@ -72,8 +71,8 @@ def from_w2v_to_dict(embedding_file, lang="zh"):
         model = Word2Vec.load(embedding_file)
 
     vector = model.wv.vectors
-    palabras = model.wv.index2word
-    union_embeddings = dict(zip(palabras, vector))
+    words= model.wv.index2word
+    union_embeddings = dict(zip(words, vector))
     return union_embeddings
 
 
@@ -112,27 +111,45 @@ emb_en = emb = get_embedding_weights(embedding_en, en_tokenizer_lang, max_featur
 
 ########Batch Generator for training. We also implement teacher forcing here######
 
-def generate_batch(X, y, global_max_len, vocab_size_out, batch_size):
+def generate_batch():
     while True:
-        for j in range(0, len(X), batch_size):
-            encoder_input_data = np.zeros((batch_size, global_max_len), dtype='float32')
-            decoder_input_data = np.zeros((batch_size, global_max_len), dtype='float32')
-            decoder_target_data = np.zeros((batch_size, global_max_len, vocab_size_out), dtype='float32')
-            for i, (input_text, target_text) in enumerate(zip(X[j:j + batch_size], y[j:j + batch_size])):
+        for j in range(0, len(zh_word_tensor)):
+            encoder_input_data = np.zeros((global_max_len), dtype='float32')
+            decoder_input_data = np.zeros((global_max_len), dtype='float32')
+            decoder_target_data = np.zeros((global_max_len, en_vocab_size), dtype='float32')
+            for i, (input_text, target_text) in enumerate(zip(zh_word_tensor[j:j+1],en_word_tensor[j:j+1])):
                 for t, word in enumerate(input_text):
-                    encoder_input_data[i, t] = word  # encoder input seq
+                  encoder_input_data[t] = word  # encoder input seq
                 for t, word in enumerate(target_text):
                     if t < len(target_text) - 1:
-                        decoder_input_data[i, t] = word  # decoder input seq
+                       decoder_input_data[t] = word  # decoder input seq
                     if t > 0:
                         # decoder target sequence (one hot encoded)
                         # does not include the "start" token and is offset by one timestep
-                        decoder_target_data[i, t - 1, word] = 1  # si el vector es (1, 2, 4) ese 4 es 0001
-            yield ([encoder_input_data, decoder_input_data], decoder_target_data)
+                        decoder_target_data[t - 1, word] = 1  # si el vector es (1, 2, 4) ese 4 es 0001
+            yield ((encoder_input_data, decoder_input_data), decoder_target_data)
+
+types = ((tf.float32,\
+         tf.float32),\
+         tf.float32)
+
+shapes=((tf.TensorShape([global_max_len]),tf.TensorShape([global_max_len])),
+        tf.TensorShape([None,en_vocab_size,]))
+
+dataset = tf.data.Dataset.from_generator(generate_batch, types, shapes)
+
+batch_size=256
+
+train=int(len(en_word_tensor)*0.8)
+test=int(len(en_word_tensor)*0.2)
+dataset=dataset.shuffle(1000, reshuffle_each_iteration=False)
+dataset_train = dataset.skip(test).batch(batch_size, drop_remainder=True)
+dataset_test = dataset.take(test).batch(batch_size, drop_remainder=True)
 
 ###########Model for training. GRU units, Bidirectional, with Attention (Bahdanau)#########
 
-#Bahdanau Attention (from Tensorflow Tutorial)
+#Bahdanau Attention
+#From Tensorflow Tutorial https://www.tensorflow.org/tutorials/text/nmt_with_attention
 
 class BahdanauAttention(tf.keras.layers.Layer):
     def __init__(self, units):
@@ -166,7 +183,7 @@ class BahdanauAttention(tf.keras.layers.Layer):
 #Model seq2seq
 
 nodes = 1024
-learning_rate = 0.0001
+learning_rate = 0.001
 clip_value = 1
 dropout = 0.1
 
@@ -213,28 +230,35 @@ decoder_dense_output = Dense(en_vocab_size, activation="softmax")(decoder_output
 model = Model(inputs=[encoder_input, decoder_input], outputs=[decoder_dense_output])
 
 # compile model
-model.compile(optimizer=Adam(learning_rate=learning_rate, clipvalue=clip_value),\
+model.compile(optimizer=RMSprop(learning_rate=learning_rate, clipvalue=clip_value),\
               loss="categorical_crossentropy", metrics=["accuracy"])
 # Summarize compiled model
 model.summary()
-plot_model(model, to_file="/content/gdrive/My Drive/tfm/model_2_1.png", show_shapes=True)
+plot_model(model, to_file="/content/gdrive/My Drive/tfm/model_3.png", show_shapes=True)
 
 
 # fit model
-epochs = 50
-b_size = 256
-checkpoint = ModelCheckpoint("/content/gdrive/My Drive/tfm/model_weights_v3_1.h5", monitor="val_loss",\
+epochs = 100
+#batch_size=256
+checkpoint = ModelCheckpoint("/content/gdrive/My Drive/tfm/model_weights_v3.h5", monitor="val_loss",\
                              verbose=1, save_best_only=True , mode="min", save_weights_only=True)
 
-model.fit(generate_batch(zh_train, en_train, global_max_len, en_vocab_size, b_size), \
-          steps_per_epoch=len(zh_train) // b_size, \
-          epochs=epochs, \
-          validation_data=generate_batch(zh_test, en_test, global_max_len, en_vocab_size, b_size), \
-          validation_steps=len(zh_test) // b_size, \
-          verbose=1, \
-          callbacks=[checkpoint], )
-# model.save("/content/gdrive/My Drive/tfm/model_complete_v3_1.h5")
+lr_scheduler = tf.keras.callbacks.ReduceLROnPlateau(monitor="val_loss", factor=0.1, patience=3)
 
+early_stopping = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=10)
+
+logdir = os.path.join("logs", datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+
+tensorboard_callback = tf.keras.callbacks.TensorBoard(logdir, histogram_freq=1)
+
+
+history = model.fit(dataset_train, \
+          epochs=epochs,
+          steps_per_epoch= (len(zh_word_tensor)*0.8)//batch_size,
+          validation_data=dataset_test,
+          validation_steps=(len(zh_word_tensor)*0.2)//batch_size,
+          verbose=1, \
+          callbacks=[checkpoint, lr_scheduler, early_stopping, tensorboard_callback], )
 
 ##############Model modified for INFERENCE##################
 
@@ -338,16 +362,16 @@ def decode_source(sentence):
     sent = np.ndarray.tolist(sentence)
     words = [decode_zh.get(letter) for letter in sent]
     my_texts = (["".join(words[i]) for i in range(len(words))])
-    texto = [i for i in my_texts if i != "0"]
-    return texto
+    text = [i for i in my_texts if i != "0"]
+    return text
 
 
 def decode_target(sentence):
     sent = np.ndarray.tolist(sentence)
     words = [decode_en.get(letter) for letter in sent]
     my_texts = (["".join(words[i]) for i in range(len(words))])
-    texto = [i for i in my_texts if i != "0"]
-    return texto
+    text = [i for i in my_texts if i != "0"]
+    return text
 
 
 # tokenizer = en_tokenizer_lang

@@ -2,7 +2,7 @@
 Hanziconv: It helps with the transformation between traditional and simplified Chinese characters
 https://pypi.org/project/hanziconv/0.3/
 
-jieba: Herramienta que ayuda a la tokenizacion, separando los caracteres chinos por palabras
+jieba: Tool to help with Chinese tokenization
 https://github.com/fxsjy/jieba
 """
 

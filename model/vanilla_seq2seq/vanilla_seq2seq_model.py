@@ -114,62 +114,77 @@ emb_en = emb = get_embedding_weights(embedding_en, en_tokenizer_lang, max_featur
 
 ########Batch Generator for training. We also implement teacher forcing here######
 
-def generate_batch(X, y, global_max_len, vocab_size_out, batch_size):
+########Batch Generator for training. We also implement teacher forcing here######
+
+def generate_batch():
     while True:
-        for j in range(0, len(X), batch_size):
-            encoder_input_data = np.zeros((batch_size, global_max_len), dtype='float32')
-            decoder_input_data = np.zeros((batch_size, global_max_len), dtype='float32')
-            decoder_target_data = np.zeros((batch_size, global_max_len, vocab_size_out), dtype='float32')
-            for i, (input_text, target_text) in enumerate(zip(X[j:j + batch_size], y[j:j + batch_size])):
+        for j in range(0, len(zh_word_tensor)):
+            encoder_input_data = np.zeros((global_max_len), dtype='float32')
+            decoder_input_data = np.zeros((global_max_len), dtype='float32')
+            decoder_target_data = np.zeros((global_max_len, en_vocab_size), dtype='float32')
+            for i, (input_text, target_text) in enumerate(zip(zh_word_tensor[j:j+1],en_word_tensor[j:j+1])):
                 for t, word in enumerate(input_text):
-                    encoder_input_data[i, t] = word  # encoder input seq
+                  encoder_input_data[t] = word  # encoder input seq
                 for t, word in enumerate(target_text):
                     if t < len(target_text) - 1:
-                        decoder_input_data[i, t] = word  # decoder input seq
+                       decoder_input_data[t] = word  # decoder input seq
                     if t > 0:
                         # decoder target sequence (one hot encoded)
                         # does not include the "start" token and is offset by one timestep
-                        decoder_target_data[i, t - 1, word] = 1  # si el vector es (1, 2, 4) ese 4 es 0001
-            yield ([encoder_input_data, decoder_input_data], decoder_target_data)
+                        decoder_target_data[t - 1, word] = 1  # si el vector es (1, 2, 4) ese 4 es 0001
+            yield ((encoder_input_data, decoder_input_data), decoder_target_data)
 
-###########Model for training. GRU units, Bidirectional, without Attention#########
+types = ((tf.float32,\
+         tf.float32),\
+         tf.float32)
+
+shapes=((tf.TensorShape([global_max_len]),tf.TensorShape([global_max_len])),
+        tf.TensorShape([None,en_vocab_size,]))
+
+dataset = tf.data.Dataset.from_generator(generate_batch, types, shapes)
+
+batch_size=256
+
+train=int(len(en_word_tensor)*0.8)
+test=int(len(en_word_tensor)*0.2)
+dataset=dataset.shuffle(1000, reshuffle_each_iteration=False)
+dataset_train = dataset.skip(test).batch(batch_size, drop_remainder=True)
+dataset_test = dataset.take(test).batch(batch_size, drop_remainder=True)
+
+
+###########Model for training. GRU units, without Attention#########
 
 #Model seq2seq
-
 nodes = 1024
 learning_rate = 0.001
 clip_value = 1
-dropout = 0.01
 
 # encoder-Chinese
 encoder_input = Input(shape=(global_max_len,))
 #mask_zero=True allows for the padding 0 at the end of the sequence to be ignored
-encoder_embedding = Embedding(zh_vocab_size, 300, input_length=global_max_len, mask_zero=True)(encoder_input)
+encoder_embedding = Embedding(input_dim=zh_vocab_size, output_dim=300, mask_zero=True)(encoder_input)
+encoder_gru = GRU(nodes, return_state=True, unroll = True, name="encoder_gru")
+encoder_output, state_h= encoder_gru(encoder_embedding)
 
-encoder_output, state_h_f, state_h_b = Bidirectional(GRU(nodes, return_sequences=True,unroll=True,\
-                                return_state=True,name="encoder_gru_2"))(encoder_embedding)
-
-state_h = Concatenate(name="states_h")([state_h_f, state_h_b])
 
 
 # decoder-English
-decoder_input = Input(shape=(global_max_len), name="decoder_input")
-decoder_emb = Embedding(en_vocab_size, 300, input_length=global_max_len,mask_zero=True)(decoder_input)
+decoder_input = Input(shape=(global_max_len,), name="decoder_input")
+decoder_emb = Embedding(en_vocab_size, 300,mask_zero=True)(decoder_input)
 
 
-decoder_gru = GRU(nodes* 2, return_sequences=True,unroll=True,\
-                  return_state=TRue, dropout=dropout,name="decoder_gru_1")(decoder_emb, initial_state=state_h)
+decoder_gru = GRU(nodes, return_sequences=True, unroll= True, return_state=True, name="decoder_gru")
+
+decoder_output, _ = decoder_gru(decoder_emb, initial_state=state_h)
 
 #Decoder Output
-
-decoder_dense_output = Dense(en_vocab_size, activation="softmax")(decoder_gru)
+decoder_dense_output = Dense(en_vocab_size, activation="softmax")(decoder_output)
 
 model = Model(inputs=[encoder_input, decoder_input], outputs=[decoder_dense_output])
 
 # compile model
-model.compile(optimizer=Adam(learning_rate=learning_rate, clipvalue=clip_value),\
-              loss="categorical_crossentropy",\
-              metrics=["accuracy"])
+model.compile(optimizer=RMSprop(learning_rate=learning_rate, clipvalue=clip_value),\
+              loss="categorical_crossentropy", metrics=["accuracy"])
 # Summarize compiled model
 model.summary()
 plot_model(model, to_file="/content/gdrive/My Drive/tfm/model_v1.png", show_shapes=True)
@@ -177,17 +192,17 @@ plot_model(model, to_file="/content/gdrive/My Drive/tfm/model_v1.png", show_shap
 
 # fit model
 epochs = 100
-b_size = 256
+#batch_size=256
 checkpoint = ModelCheckpoint("/content/gdrive/My Drive/tfm/model_weights_v1.h5", monitor="val_loss",\
                              verbose=1, save_best_only=True , mode="min", save_weights_only=True)
-lr_scheduler = tf.keras.callbacks.ReduceLROnPlateau(monitor="val_loss", factor=0.1, patience=5)
+lr_scheduler = tf.keras.callbacks.ReduceLROnPlateau(monitor="val_loss", factor=0.1, patience=3)
 early_stopping = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=10)
 
-history = model.fit(generate_batch(zh_train, en_train, global_max_len, en_vocab_size, b_size), \
-          steps_per_epoch=len(zh_train) // b_size, \
-          epochs=epochs, \
-          validation_data=generate_batch(zh_test, en_test, global_max_len, en_vocab_size, b_size), \
-          validation_steps=len(zh_test) // b_size, \
+history = model.fit(dataset_train, \
+          epochs=epochs,
+          steps_per_epoch= (len(zh_word_tensor)*0.8)//batch_size,
+          validation_data=dataset_test,
+          validation_steps=(len(zh_word_tensor)*0.2)//batch_size,
           verbose=1, \
           callbacks=[checkpoint, lr_scheduler, early_stopping], )
 
@@ -196,14 +211,16 @@ model.save("/content/gdrive/My Drive/tfm/model_complete_v1.h5")
 
 ##############Model modified for INFERENCE##################
 
+##############Model modified for INFERENCE##################
+
 # encoder_model_inference is the same as in training
-encoder_inf = Model(encoder_input, [encoder_output, state_h])
+encoder_inf = Model(encoder_input, state_h)
 
 encoder_inf.save("/content/gdrive/My Drive/tfm/encoder_inf_model_v1.h5")
 encoder_inf.save_weights("/content/gdrive/My Drive/tfm/encoder_inf_weights_v1.h5")
 
 # decoder_model_inference
-decoder_inf_state_input_h = Input(shape=(nodes_lstm * 2,), name="encoder_hidden_state") #Encoder hidden states
+decoder_inf_state_input_h = Input(shape=(nodes, ), name="encoder_hidden_state") #Encoder hidden states
 
 # decoder_inputs
 decoder_inf_input = Input(shape=(1,)) #Input fro inference decoding is 1 word at a time
@@ -211,7 +228,7 @@ decoder_inf_input_emb = Embedding(en_vocab_size, 300, \
                                   weights=[emb_en], mask_zero=True)(decoder_inf_input)
 
 # decoder
-decoder_inf_gru = GRU(nodes_lstm * 2, return_sequences=True, return_state=True, unroll=True)
+decoder_inf_gru = GRU(nodes, return_sequences=True, unroll=True, return_state=True)
 decoder_inf, h_inf = decoder_gru(decoder_inf_input_emb, initial_state=decoder_inf_state_input_h)
 decoder_inf_state = h_inf
 
@@ -225,6 +242,10 @@ decoder_inf_model.summary()
 
 plot_model(decoder_inf_model, to_file="/content/gdrive/My Drive/tfm/decoder_inf_model_v1.png", \
            show_shapes=True, show_layer_names=True)
+
+decoder_inf_model.save("/content/gdrive/My Drive/tfm/decoder_inf_model_v1.h5")
+decoder_inf_model.save_weights("/content/gdrive/My Drive/tfm/decoder_inf_weights_v1.h5")
+plot_model(decoder_inf_model, to_file="/content/gdrive/My Drive/tfm/model_inf_v1.png", show_shapes=True)
 
 # decoder_inf_model.save("/content/gdrive/My Drive/tfm/decoder_inf_model_v3_1.h5")
 decoder_inf_model.save_weights("/content/gdrive/My Drive/tfm/decoder_inf_weights_v1.h5")
@@ -240,7 +261,7 @@ decode_en = {v: k for k, v in en_tokenizer_lang.word_index.items()}
 
 
 def translate_sentence(input_sentence, target_tokenizer, decoding_dict, output_max_len):
-    encoder_output, states_value = encoder_inf.predict(input_sentence)
+    states_value = encoder_inf.predict(input_sentence)
 
     target_sequence = np.zeros((1, 1))
     target_sequence[0, 0] = target_tokenizer.word_index.get("start")
@@ -296,8 +317,8 @@ def decode_target(sentence):
     sent = np.ndarray.tolist(sentence)
     words = [decode_en.get(letter) for letter in sent]
     my_texts = (["".join(words[i]) for i in range(len(words))])
-    texto = [i for i in my_texts if i != "0"]
-    return texto
+    text = [i for i in my_texts if i != "0"]
+    return text
 
 
 # tokenizer = en_tokenizer_lang

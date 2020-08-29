@@ -9,6 +9,7 @@ from tensorflow.keras.preprocessing.text import Tokenizer
 from sklearn.model_selection import train_test_split
 from gensim.models import Word2Vec, KeyedVectors
 from nltk.translate.bleu_score import corpus_bleu
+import os, datetime
 
 ######Data Preparation#######
 
@@ -55,8 +56,6 @@ en_tokenizer_lang, en_word_tensor = tokenizer(corpus_en, global_max_len, max_fea
 zh_vocab_size = len(zh_tokenizer_lang.word_index)
 en_vocab_size = len(en_tokenizer_lang.word_index)
 
-#Split the dataset into train and test sets
-zh_train, zh_test, en_train, en_test = train_test_split(zh_word_tensor, en_word_tensor, test_size=0.1, random_state=13)
 
 #Preparation of embedding files.
 #Source Chinese Embedding: https://github.com/Kyubyong/wordvectors
@@ -195,8 +194,15 @@ epochs = 100
 #batch_size=256
 checkpoint = ModelCheckpoint("/content/gdrive/My Drive/tfm/model_weights_v1.h5", monitor="val_loss",\
                              verbose=1, save_best_only=True , mode="min", save_weights_only=True)
+
 lr_scheduler = tf.keras.callbacks.ReduceLROnPlateau(monitor="val_loss", factor=0.1, patience=3)
+
 early_stopping = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=10)
+
+logdir = os.path.join("logs", datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+
+tensorboard_callback = tf.keras.callbacks.TensorBoard(logdir, histogram_freq=1)
+
 
 history = model.fit(dataset_train, \
           epochs=epochs,
@@ -204,9 +210,10 @@ history = model.fit(dataset_train, \
           validation_data=dataset_test,
           validation_steps=(len(zh_word_tensor)*0.2)//batch_size,
           verbose=1, \
-          callbacks=[checkpoint, lr_scheduler, early_stopping], )
+          callbacks=[checkpoint, lr_scheduler, early_stopping, tensorboard_callback], )
 
 model.save("/content/gdrive/My Drive/tfm/model_complete_v1.h5")
+
 
 
 ##############Model modified for INFERENCE##################

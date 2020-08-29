@@ -161,7 +161,7 @@ clip_value = 1
 # encoder-Chinese
 encoder_input = Input(shape=(global_max_len,))
 #mask_zero=True allows for the padding 0 at the end of the sequence to be ignored
-encoder_embedding = Embedding(input_dim=zh_vocab_size, output_dim=300, mask_zero=True)(encoder_input)
+encoder_embedding = Embedding(input_dim=zh_vocab_size, output_dim=300, weights=emb_zh, mask_zero=True)(encoder_input)
 encoder_gru = GRU(nodes, return_state=True, unroll = True, name="encoder_gru")
 encoder_output, state_h= encoder_gru(encoder_embedding)
 
@@ -169,7 +169,7 @@ encoder_output, state_h= encoder_gru(encoder_embedding)
 
 # decoder-English
 decoder_input = Input(shape=(global_max_len,), name="decoder_input")
-decoder_emb = Embedding(en_vocab_size, 300,mask_zero=True)(decoder_input)
+decoder_emb = Embedding(en_vocab_size, 300, weights=emb_en, mask_zero=True)(decoder_input)
 
 
 decoder_gru = GRU(nodes, return_sequences=True, unroll= True, return_state=True, name="decoder_gru")

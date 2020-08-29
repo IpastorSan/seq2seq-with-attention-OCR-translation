@@ -148,7 +148,8 @@ dataset_test = dataset.take(test).batch(batch_size, drop_remainder=True)
 
 ###########Model for training. GRU units, Bidirectional, with Attention (Bahdanau)#########
 
-#Bahdanau Attention (from Tensorflow Tutorial)
+#Bahdanau Attention
+#From Tensorflow Tutorial https://www.tensorflow.org/tutorials/text/nmt_with_attention
 
 class BahdanauAttention(tf.keras.layers.Layer):
     def __init__(self, units):
@@ -361,16 +362,16 @@ def decode_source(sentence):
     sent = np.ndarray.tolist(sentence)
     words = [decode_zh.get(letter) for letter in sent]
     my_texts = (["".join(words[i]) for i in range(len(words))])
-    texto = [i for i in my_texts if i != "0"]
-    return texto
+    text = [i for i in my_texts if i != "0"]
+    return text
 
 
 def decode_target(sentence):
     sent = np.ndarray.tolist(sentence)
     words = [decode_en.get(letter) for letter in sent]
     my_texts = (["".join(words[i]) for i in range(len(words))])
-    texto = [i for i in my_texts if i != "0"]
-    return texto
+    text = [i for i in my_texts if i != "0"]
+    return text
 
 
 # tokenizer = en_tokenizer_lang

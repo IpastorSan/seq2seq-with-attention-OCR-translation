@@ -153,7 +153,7 @@ dataset_test = dataset.take(test).batch(batch_size, drop_remainder=True)
 
 
 nodes = 1024
-learning_rate = 0.01
+learning_rate = 0.001
 clip_value = 1
 dropout = 0.01
 

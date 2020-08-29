@@ -1,7 +1,15 @@
 # OCR for Chinese character recognition
+import re
+import unicodedata
+import io
+import jieba
+from hanziconv import HanziConv
+import string
+import tensorflow as tf
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.models import Model
 
-# Import Image as string
-from full workflow_data_seq2seq_attention.py import *
+from full workflow_data_seq2seq_attention.py import tokenizer, translate_sentence, translate_corpus, preprocessing_zh, unicode_to_ascii
 from PIL import Image
 from pytesseract import image_to_string
 
@@ -36,6 +44,8 @@ def max_len(datos):
 tokenizer_lang, word_matrix = tokenizer(data, max_len=max_len_str, max_features=10000)
 
 input_vocab_size = len(tokenizer_lang.word_index)
+
+decoding_dictionary = {v:k for k, v in tokenizer_lang.word_index.items()}  #necessary for decoding in translate_image
 
 #####Recovering of previously trained models#####
 """As an example, we will recover the vanilla model.
@@ -78,7 +88,7 @@ decoder_inf.load_weights("/content/gdrive/My Drive/tfm/decoder_inf_weights_v4.h5
 
 # Translate image content
 
-def translate_image(image_data, decoding_dictionary, max_features=1000):
+def translate_image(decoding_dictionary, max_features=1000):
 
     image_translation = translate_corpus(word_matrix, tokenizer_lang, decoding_dictionary, output_max_len=max_len_str)
 
@@ -137,5 +147,5 @@ decoder_inf = Model([decoder_inf_input, decoder_inf_state_input_h], \
 decoder_inf.load_weights("/content/gdrive/My Drive/tfm/decoder_inf_weights_v4.h5")
 
 #-------->translate sequence<-----------
-translation = translate_image(texto_imagen, decoder_inf)"""
+translation = translate_image(tdecoding_dictionary)"""
 

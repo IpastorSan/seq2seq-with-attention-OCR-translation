@@ -1,7 +1,7 @@
 # OCR for Chinese character recognition
 
 # Import Image as string
-from full workflow_data_seq2seq_attention.py import tokenizer, translate_corpus, decode_en
+from full workflow_data_seq2seq_attention.py import *
 from PIL import Image
 from pytesseract import image_to_string
 

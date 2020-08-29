@@ -190,7 +190,7 @@ dropout = 0.1
 # encoder-Chinese
 encoder_input = Input(shape=(global_max_len,))
 #mask_zero=True allows for the padding 0 at the end of the sequence to be ignored
-encoder_embedding = Embedding(zh_vocab_size, 300, input_length=global_max_len, mask_zero=True)(encoder_input)
+encoder_embedding = Embedding(zh_vocab_size, 300, input_length=global_max_len, weights=[emb_zh],mask_zero=True)(encoder_input)
 
 encoder_gru = Bidirectional(GRU(nodes, return_sequences=True,unroll=True,\
                                 name="encoder_gru_1"))(encoder_embedding)
@@ -211,7 +211,7 @@ context_vector = tf.keras.layers.RepeatVector(global_max_len)(
 # decoder-English
 decoder_input = Input(shape=(global_max_len), name="decoder_input")
 
-decoder_emb = Embedding(en_vocab_size, 300, input_length=global_max_len,mask_zero=True)(decoder_input)
+decoder_emb = Embedding(en_vocab_size, 300, input_length=global_max_len, weights=[emb_en],mask_zero=True)(decoder_input)
 
 decoder_emb_attention = tf.concat([context_vector, decoder_emb], axis=-1)
 

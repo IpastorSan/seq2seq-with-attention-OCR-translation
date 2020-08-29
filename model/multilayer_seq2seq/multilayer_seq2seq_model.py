@@ -161,7 +161,7 @@ dropout = 0.01
 # encoder-Chinese
 encoder_input = Input(shape=(global_max_len,))
 #mask_zero=True allows for the padding 0 at the end of the sequence to be ignored
-encoder_embedding = Embedding(zh_vocab_size, 300, input_length=global_max_len, mask_zero=True)(encoder_input)
+encoder_embedding = Embedding(zh_vocab_size, 300, input_length=global_max_len, weights=[emb_zh], mask_zero=True)(encoder_input)
 
 encoder_gru = Bidirectional(GRU(nodes, return_sequences=True,unroll=True,\
                                 name="encoder_gru_1"))(encoder_embedding)
@@ -176,7 +176,7 @@ state_h = Concatenate(name="states_h")([state_h_f, state_h_b])
 
 # decoder-English
 decoder_input = Input(shape=(global_max_len), name="decoder_input")
-decoder_emb = Embedding(en_vocab_size, 300, input_length=global_max_len,mask_zero=True)(decoder_input)
+decoder_emb = Embedding(en_vocab_size, 300, input_length=global_max_len, weights=[emb_en], mask_zero=True)(decoder_input)
 
 
 decoder_gru = GRU(nodes* 2, return_sequences=True,unroll=True,\
@@ -206,7 +206,6 @@ model.summary()
 plot_model(model, to_file="/content/gdrive/My Drive/tfm/model_v2.png", show_shapes=True)
 
 
-# fit model
 # fit model
 
 epochs = 100

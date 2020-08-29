@@ -156,7 +156,7 @@ dataset_test = dataset.take(test).batch(batch_size, drop_remainder=True)
 
 #Model seq2seq
 nodes = 1024
-learning_rate = 0.001
+learning_rate = 0.01
 clip_value = 1
 
 # encoder-Chinese

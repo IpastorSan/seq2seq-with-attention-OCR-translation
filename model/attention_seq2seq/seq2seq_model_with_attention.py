@@ -326,7 +326,7 @@ def translate_sentence(input_sentence, target_tokenizer, decoding_dict, output_m
                                                                   encoder_output, states_value])
         id_word = np.argmax(output_token[0, -1, :])
 
-        if id_word == end_of_sequence or input_sentence[0][i] == 0:  # esta ultima condicion esta mal
+        if id_word == end_of_sequence or len(translated_sentence) == output_max_len:
             break
 
         decoded_word = ""

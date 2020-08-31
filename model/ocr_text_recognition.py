@@ -8,8 +8,8 @@ import string
 import tensorflow as tf
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.models import Model
-
-from full workflow_data_seq2seq_attention.py import tokenizer, translate_sentence, translate_corpus, preprocessing_zh, unicode_to_ascii
+from vanilla_seq2seq_model.py import tokenizer, translate_sentence, translate_corpus, open_data
+from text_preprocessing.py import preprocessing_zh, unicode_to_ascii
 from PIL import Image
 from pytesseract import image_to_string
 
@@ -21,10 +21,25 @@ shutil.copy(zh_sim_file, "/usr/share/tesseract-ocr/4.00/tessdata")  # This comes
 shutil.copy(zh_tra_file, "/usr/share/tesseract-ocr/4.00/tessdata")  # This comes from Colab, adapt to your system
 
 """
-Preprocessing form previous script:
+Preprocessing from previous script:
 1)Eliminate all spaces and special characters
-2)Apply tokenizer function 
+2)Recover tokenizer from training and apply it to new sequence
+3)Recover decoding dictionary from training for decoding
 """
+#recovering dataset from training
+def open_data(dataset, num_examples=None):
+    with open(dataset) as archivo:
+        datos = [line.rstrip('\n') for line in archivo]
+        corpus = datos[:num_examples]
+        
+    return corpus
+
+# Training corpus, necessary for reproducing results
+num_examples = 20000
+corpus_zh = open_data("/content/gdrive/My Drive/tfm/dataset_zh.txt", num_examples=num_examples)
+corpus_en = open_data("/content/gdrive/My Drive/tfm/dataset_en.txt", num_examples=num_examples)
+
+
 def from_image_to_text(image):  # Input image is in Chinese
     im = Image.open(image)
     text_im = image_to_string(im, lang='chi_sim_vert+chi_tra_vert')
@@ -35,17 +50,27 @@ def from_image_to_text(image):  # Input image is in Chinese
 def create_dataset(data, language="zh"):
     q=preprocessing_zh(texto_imagen)
     lines = q.split("\n")
-    dataset= [line.rstrip('。') for line in lines]
+    dataset= [line.strip('。') for line in lines]
     return dataset
 
 def max_len(datos):
-    return len([line.split("/t") for line in datos])
+    return len([line.split("/t") for line in str(datos)])
 
-tokenizer_lang, word_matrix = tokenizer(data, max_len=max_len_str, max_features=10000)
 
+#tokenizing source with previously trained Tokenizer, using it to convert the new text to a sequence so it can be compatible with the trained model
+
+max_len_str = max_len(data)
+
+tokenizer_source = tf.keras.preprocessing.text.Tokenizer()
+tokenizer_source.fit_on_texts(corpus_zh)
+word_matrix = tokenizer_source.texts_to_sequences(data)
 input_vocab_size = len(tokenizer_lang.word_index)
 
-decoding_dictionary = {v:k for k, v in tokenizer_lang.word_index.items()}  #necessary for decoding in translate_image
+#decoding dictionary, necessary for decoding on inference
+target_tokenizer = tf.keras.preprocessing.text.Tokenizer()
+target_tokenizer.fit_on_texts(corpus_en)
+decode_dictionary_target = {v:k for k, v in target_tokenizer.word_index.items()}
+
 
 #####Recovering of previously trained models#####
 """As an example, we will recover the vanilla model.
@@ -89,10 +114,11 @@ decoder_inf.load_weights("/content/gdrive/My Drive/tfm/decoder_inf_weights_v4.h5
 # Translate image content
 
 def translate_image(decoding_dictionary, max_features=1000):
-
-    image_translation = translate_corpus(word_matrix, tokenizer_lang, decoding_dictionary, output_max_len=max_len_str)
+    image_translation = translate_sentence(word_matrix, target_tokenizer,\
+                        decoding_dictionary, output_max_len=max_len_str )
 
     return image_translation
+
 
 ###EXAMPLE WORKFLOW###
 """if __name__ == "__main__":
@@ -104,11 +130,34 @@ mock_image = "/content/gdrive/My Drive/mock_image.png"
 text_from_image = from_image_to_text(imagen_prueba)
 data = create_dataset(text_from_image)
 
+--------->recover training data<---------
+
+def open_data(dataset, num_examples=None):
+    with open(dataset) as archivo:
+        datos = [line.rstrip('\n') for line in archivo]
+        corpus = datos[:num_examples]
+        
+    return corpus
+
+# Training corpus, necessary for reproducing results
+num_examples = 20000
+corpus_zh = open_data("/content/gdrive/My Drive/tfm/dataset_zh.txt", num_examples=num_examples)
+corpus_en = open_data("/content/gdrive/My Drive/tfm/dataset_en.txt", num_examples=num_examples)
+
 #-------->preprocess the string<-----------
+#tokenizing source with previously trained Tokenizer, using it to convert the new text to a sequence so it can be compatible with the trained model
 
 max_len_str = max_len(data)
-tokenizer_lang, word_matrix = tokenizer(data, max_len=max_len_str, max_features=10000)
+
+tokenizer_source = tf.keras.preprocessing.text.Tokenizer()
+tokenizer_source.fit_on_texts(corpus_zh)
+word_matrix = tokenizer_source.texts_to_sequences(data)
 input_vocab_size = len(tokenizer_lang.word_index)
+
+#decoding dictionary, necessary for decoding on inference
+target_tokenizer = tf.keras.preprocessing.text.Tokenizer()
+target_tokenizer.fit_on_texts(corpus_en)
+decode_dictionary_target = {v:k for k, v in target_tokenizer.word_index.items()}
 
 #-------->Load models<-----------
 
@@ -147,5 +196,5 @@ decoder_inf = Model([decoder_inf_input, decoder_inf_state_input_h], \
 decoder_inf.load_weights("/content/gdrive/My Drive/tfm/decoder_inf_weights_v4.h5")
 
 #-------->translate sequence<-----------
-translation = translate_image(tdecoding_dictionary)"""
+translation = translate_image(decode_dictionary_target)"""
 

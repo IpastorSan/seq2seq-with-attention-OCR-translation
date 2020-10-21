@@ -61,3 +61,7 @@ Finally, the OCR (pretrained [Tesseract](https://github.com/tesseract-ocr/tesser
 • https://towardsdatascience.com/word-level-english-to-marathi-neural-machinetranslation-using-seq2seq-encoder-decoder-lstm-model-1a913f2dc4a7
 
 • https://github.com/fxsjy/jieba
+
+• Source Chinese Embedding: https://github.com/Kyubyong/wordvectors
+
+• Source English Embedding: https://fasttext.cc/docs/en/english-vectors.html

@@ -62,7 +62,7 @@ def preprocessing_en(text):
 
 def create_dataset(path, language="en"):
     lines = io.open(path, encoding="UTF-8").read().strip().split("\n")
-    text = [l.split("\t", 2)[0:2] for l in lines]
+    text = [l.split("\t", 2)[0:2] for l in lines] #This help us separate the sentences and leave out the meta-data
 
     if language == "zh":
         dataset = [preprocessing_zh(text[t][1]) for t in range(len(text))]

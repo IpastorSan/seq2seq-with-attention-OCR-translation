@@ -32,7 +32,7 @@ def unicode_to_ascii(text):
 
 
 def preprocessing_zh(text):
-    #t = unicode_to_ascii(text.lower().strip())
+    t = unicode_to_ascii(text.lower().strip())
     t = re.sub(r'[^?.!,¿。！？\u4e00-\u9fff]+', " ", t)  # Eliminates non-chinese characters
     t = re.sub(r'([?.!,¿])', r" \1 ", t)  # add a space between punctuation symbols and the words
     t = re.sub(' ', r'[' ']+', t)
